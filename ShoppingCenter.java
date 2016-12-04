@@ -10,7 +10,7 @@ public class ShoppingCenter<T> {
     private int reg1Count;
     private int reg2Count;
     private int expressCount;
-    private final int RESTOCK;
+    private final int REGNUM = 3;
     
     public ShoppingCenter(int restock) {
         this.customers = new ListArrayBasedPlus<Customer>();
@@ -22,20 +22,31 @@ public class ShoppingCenter<T> {
         this.reg1Count = 0;
         this.reg2Count = 0;
         this.expressCount = 0;
-        this.RESTOCK = restock;
     }
     
     public void addCustomer(String name) {
     	Customer newCustomer = new Customer(name);
     	customers.add(customers.size(), newCustomer);
     }
+    public void addCustomer(Customer customer) {
+    	customers.add(customers.size(), customer);
+    }
     
     public void removeCustomer(String name) {
+    	//customers.remove(0);
         customers.remove(findCustomerIndex(name));
     }
     
-    public void addItem() {
-    	
+   public int findCustomerIndex(String name) {
+    	int size = customers.size();
+    	for(int i = 0; i < size; i++) {
+    		Customer customer = customers.get(i);
+    		
+    		if(customer.getName().equals(name)) {
+    			return(i);
+    		}
+    	}
+    	return -1;
     }
     
     public void incrementTime() {
@@ -45,21 +56,8 @@ public class ShoppingCenter<T> {
         }
     }
     
-   /* public T find(String name, ListArrayBasedPlus<T> list) {
-    	int size =  list.size();
-    	T temp = null;
-    	
-    	for( int i = 0; i < size; i++ ) {	
-    		temp = list.get(i);
-    		if( temp.compareTo(name) == 0 ) {
-    			return( temp );
-    		}
-    	}
-    	return( temp );
-    }
-    */
-    public void setStock(String itemName, int quantity) {
-    	stock.add(stock.size(), new Item(itemName, quantity));
+    public void setStock(String itemName, int quantity, int restock) {
+    	stock.add(stock.size(), new Item(itemName, quantity, restock));
     }
     
     public void restockItems(Item item, int amount) {
@@ -91,16 +89,32 @@ public class ShoppingCenter<T> {
     	return null;
     }
     
-    public void addCustomerToCheckout() {
-    	//get customer with largest time
+    //Jon-edit: 1/3/16
+    public Customer findLargestTime() {
+    	//get customer with largest time & (when needed) most items
     	int size = customers.size();
-    	Customer custLargestTime = customers.get(0);
+    	int largestIndex = 0;
+    	Customer custLargestTime = customers.get(largestIndex);
     	for(int i = 1; i < size; i++) {
     		Customer next = customers.get(i);
-    		if(custLargestTime.getTime() < next.getTime()) {
-    			custLargestTime = next;
+                //if current largest is less than next
+    		if(custLargestTime.getTime() < next.getTime()) { 
+                    //if current largest has less items than next
+                    if (custLargestTime.getItemsInCart() < next.getItemsInCart()) {
+                        //then, and only then, update largest
+                        custLargestTime = next;
+                        largestIndex = i;
+                    }
     		}
     	}
+    	return(custLargestTime);
+    }
+    
+    public String addCustomerToCheckout(Customer custLargestTime) {    	
+    	String line = "";
+    	//customers.remove(0);
+    	removeCustomer(custLargestTime.getName());
+    	
     	//add customer to proper line
     	int numItems = custLargestTime.getItemsInCart();
     	if(numItems <= 5) {
@@ -108,23 +122,60 @@ public class ShoppingCenter<T> {
                 //when all lines are empty and customer has <=5 did not go into express
     		if( (expressCount > (reg1Count << 1) ) || 
                     (expressCount > (reg2Count << 1) ) ) {
-    			if(reg1Count < reg2Count) 
+    			if(reg1Count < reg2Count) {
         			reg1.enqueue(custLargestTime);
-        		else
+    				line = "first check out line.\n";
+    				reg1Count++;
+    			}
+        		else {
         			reg2.enqueue(custLargestTime);
+    				line = "second check out line.\n";
+    				reg2Count++;
+        		}
     		}
     		else {
     			express.enqueue(custLargestTime);
+    			line = "express line.\n";
+    			expressCount++;
     		}
     	}
     	else {
-    		if(reg1Count < reg2Count) { reg1.enqueue(custLargestTime); }
-    		else { reg2.enqueue(custLargestTime); }
+    		if(reg1Count < reg2Count) { 
+    			reg1.enqueue(custLargestTime); 
+    			line = "first check out line.\n";
+    			reg1Count++;
+    		}
+    		else { 
+    			reg2.enqueue(custLargestTime); 
+    			line = "second check out line.\n";
+    			reg2Count++;
+    		}
     	}
+    	return(line);
     }
     
     public Customer checkOutCustomer(String nextRegister) {
-        
+
+    	int i = 0;
+    	while ( i++ < REGNUM ) {
+    		if(nextRegister.equals("express") && !express.isEmpty()) {
+        		return( express.dequeue() );
+        	}
+    		nextRegister = "regular1";
+    		
+        	if(nextRegister.equals("regular1") && !reg1.isEmpty()) {		
+        		return( reg1.dequeue() );
+        	}
+        	nextRegister = "regular2";
+        	
+        	if(nextRegister.equals("regular2") && !reg2.isEmpty()) {
+        		return( reg2.dequeue() );
+        	}
+        	nextRegister = "express";
+    	}
+    	return null;
+    	
+    	/*
         switch(nextRegister) {
             case "express": 
                 if (express.isEmpty()) { return null; }
@@ -140,14 +191,21 @@ public class ShoppingCenter<T> {
                 return reg2.dequeue();
         }
         return null;
+        */
     }
     
     public String printCustomersList() {
     	String output = "";
     
-    	int size = customers.size();
-    	for (int i = 0; i < size; i++) { 
-    		output += customers.get(i).printCustomerInfo() + "\n";
+    	if(customers.isEmpty()) { output = "No customers are in the Shopping Center!"; }
+    	else {
+	    	int size = customers.size();
+	    	for (int i = 0; i < size; i++) { 
+	    		Customer customer = customers.get(i);
+	    		if(customer.getItemsInCart() >= 0) {
+	    			output += customer.printCustomerInfo() + "\n";
+	    		}
+	    	}
     	}
     	return( output );
     }
@@ -174,7 +232,7 @@ public class ShoppingCenter<T> {
     		int size = customers.size();
     		output += (size > 1) ? "The following customers are in the first checkout line: \n" :
     							   "The following customer is in the first checkout line: \n";		   	
-    		output += "\t" + reg1.toString() + "\n";//Jon edit:added  + "\n" & "\t" +
+    		output += reg1.toString() + "\n";//Jon edit:added  + "\n" & "\t" +
     	}
     	
     	if (reg2.isEmpty()) {output += "No customers are in the second checkout line!\n";}
@@ -182,7 +240,7 @@ public class ShoppingCenter<T> {
     		int size = customers.size();
     		output += (size > 1) ? "The following customers are in the second checkout line: \n" :
     							   "The following customer is in the second checkout line: \n";		   	
-        	output += "\t" + reg2.toString() + "\n";//Jon edit:added  + "\n" & "\t" +
+        	output += reg2.toString() + "\n";//Jon edit:added  + "\n" & "\t" +
     	}
     	
     	if (express.isEmpty()) {output += "No customers are in the express line!\n";}
@@ -190,21 +248,10 @@ public class ShoppingCenter<T> {
     		int size = customers.size();
     		output += (size > 1) ? "The following customers are in the express checkout line: \n" :
     							   "The following customer is in the express checkout line: \n";		   	
-    		output += "\t" + express.toString() + "\n"; //Jon edit:added  + "\n" & "\t" +
+    		output += express.toString() + "\n"; //Jon edit:added  + "\n" & "\t" +
     	}	
     	return( output );
     }
-    /*
-    The following customer is in the first checkout line:
-    	Customer Pidgey has 7 items in the shopping basket.
-      No customers are in the second checkout line!
-      The following customer is in the express checkout line:
-    	Customer Hoopa has 2 items in the shopping basket.
-    */
-    //returns index at which item is or should be placed
-    //public int binarySearch(ListArrayBasedPlus<Customer> list) {
-    	
-    //}
     public ListArrayBasedPlus<Item> getStock() {
     	return stock;
     }
@@ -220,7 +267,5 @@ public class ShoppingCenter<T> {
     public boolean areLinesEmpty() {
         return express.isEmpty() && reg1.isEmpty() && reg2.isEmpty();
     }
-    
-    public enum Registers { REGISTER1, REGISTER2, EXPRESS; }
-    
+  
 }
